@@ -55,28 +55,28 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="flex gap-4">
         <button onclick="addProduction()"
-                class="col-span-2 bg-emerald-600 hover:bg-emerald-500 py-5 rounded-2xl text-xl font-bold transition-all active:scale-95 shadow-lg">
+                class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-5 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
           ✅ 실적입력
         </button>
         <button onclick="startWorkTimer()"
-                class="bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
+                class="flex-1 bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
           ▶️ 작업시작
         </button>
         <button onclick="stopWorkTimer()"
-                class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
+                class="flex-1 bg-orange-600 hover:bg-orange-500 py-5 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
           ⏹️ 작업종료
         </button>
         <button onclick="window.location.href='dashboard.html'"
-                class="col-span-2 bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg mt-2">
-          📊 대시보드 바로가기
+                class="flex-1 bg-purple-600 hover:bg-purple-500 py-5 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
+          📊 대시보드
         </button>
       </div>
     </div>
 
     <div class="mt-12 max-w-2xl">
-      <h3 class="text-2xl font-bold mb-6">📋 최근 등록된 작업 (구글 시트 연동)</h3>
+      <h3 class="text-2xl font-bold mb-6">📋 최근 등록된 작업 (구글 시트 실시간 연동)</h3>
       <div id="recentList" class="space-y-4">
         <p class="text-zinc-500">불러오는 중...</p>
       </div>
@@ -84,10 +84,13 @@
   </div>
 
   <script>
-    // ===== 💡 Google Sheets 주소 및 인증 설정 =====
+    // ===== 💡 1단계에서 만든 본인의 구글 웹 앱 URL 주소를 아래에 붙여넣으세요 =====
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbweL349oZfbvXA6_4S0OoL29V3bvfUxl0ykuevwqndLxis3uJYLpBNjsJ0yjl_5HLg/exec";
+    
+    // 데이터를 읽어올 때 사용하는 기존 설정
     const SHEET_ID = "1gp4BdOyRoyDray1dtFTvAey8WrAH7E0-eaLUnTWF7xA";
     const API_KEY = "AIzaSyD7qPKn6AXIps7AsTJfRVFKNaZccI3Qsj8";
-    // ==============================================
+    // ======================================================================
 
     function saveProjectTitle() {
       const title = document.getElementById('projectTitle').value.trim();
@@ -135,8 +138,7 @@
             document.getElementById('totalQty').disabled = false;
             document.getElementById('totalQty').classList.remove('opacity-50', 'cursor-not-allowed');
           }
-        })
-        .catch(err => console.error("기존 수량 확인 실패:", err));
+        });
     }
 
     function addProduction() {
@@ -158,13 +160,6 @@
       }
 
       saveToGoogleSheets(jobName, totalQty || 0, producedQty);
-      
-      document.getElementById('jobName').value = '';
-      document.getElementById('totalQty').value = '';
-      document.getElementById('totalQty').disabled = false;
-      document.getElementById('totalQty').classList.remove('opacity-50', 'cursor-not-allowed');
-      document.getElementById('producedQty').value = '';
-      document.getElementById('jobName').focus();
     }
 
     function saveToGoogleSheets(jobName, totalQty, producedQty) {
@@ -172,27 +167,29 @@
       const values = [[jobName, totalQty, producedQty, "접수", "-", timestamp]];
       const body = { values: values };
 
-      // 데이터를 추가하라는 요청을 구글 서버에 보냅니다.
-      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000:append?valueInputOption=USER_ENTERED&key=${API_KEY}`, {
+      // 새로운 안전한 통로로 데이터를 전송합니다.
+      fetch(WEB_APP_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' }, // 구글 웹앱 우회를 위해 text/plain 사용
         body: JSON.stringify(body)
       })
-      .then(response => {
-        if (!response.ok) {
-          // 구글 서버가 요청을 거절했을 때 (권한 문제 등) 발생합니다.
-          throw new Error(`구글 서버 오류 (코드: ${response.status}) - 공유 권한 혹은 시트명을 확인하세요.`);
-        }
-        return response.json();
-      })
+      .then(response => response.json())
       .then(data => {
-        alert("✅ 실적이 성공적으로 등록되었습니다!\n전체 대시보드에 실시간 반영됩니다.");
+        alert("✅ 실적이 구글 스프레드시트에 실시간 등록되었습니다!");
+        
+        // 입력 칸 비우기 및 초기화
+        document.getElementById('jobName').value = '';
+        document.getElementById('totalQty').value = '';
+        document.getElementById('totalQty').disabled = false;
+        document.getElementById('totalQty').classList.remove('opacity-50', 'cursor-not-allowed');
+        document.getElementById('producedQty').value = '';
+        document.getElementById('jobName').focus();
+        
         renderRecentList();
       })
       .catch(error => {
-        // 네트워크 연결이 끊겼거나 주소가 아예 잘못되었을 때 발생합니다.
-        console.error('❌ Google Sheets 저장 오류:', error);
-        alert(`❌ 구글 시트 저장 실패!\n이유: ${error.message}`);
+        console.error('❌ 구글 시트 전송 오류:', error);
+        alert("❌ 구글 시트에 기록하지 못했습니다. 웹 앱 주소(WEB_APP_URL)를 다시 확인해 주세요.");
       });
     }
 
@@ -234,7 +231,7 @@
             <div class="bg-zinc-900 rounded-2xl p-4 flex justify-between items-center">
               <div class="flex-1">
                 <p class="font-bold text-lg">${row[0]}</p>
-                <p class="text-zinc-400 text-sm">이번 입력: ${parseInt(row[2]).toLocaleString()}개 (${row[5] || ''})</p>
+                <p class="text-zinc-400 text-sm">생산: ${parseInt(row[2]).toLocaleString()}개 (${row[5] || ''})</p>
               </div>
             </div>
           `).join('');
