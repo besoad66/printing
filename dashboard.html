@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>보안인쇄 대시보드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Malgun Gothic', system-ui, sans-serif; }
+    .progress-bar { transition: width 1.8s cubic-bezier(0.34, 1.56, 0.64, 1 ); }
+    
+    /* 모바일 기기에서도 화면이 깨지지 않도록 맞추는 설정 */
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem !important; }
+      .text-3xl { font-size: 1.25rem !important; }
+      .text-2xl { font-size: 1.125rem !important; }
+      .text-xl { font-size: 1rem !important; }
+      .text-lg { font-size: 0.95rem !important; }
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 1.5rem !important; }
+      .text-3xl { font-size: 1rem !important; }
+      .text-2xl { font-size: 0.95rem !important; }
+      .text-xl { font-size: 0.875rem !important; }
+      .text-lg { font-size: 0.8rem !important; }
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen">
+  <div class="max-w-full mx-auto p-6">
+    <div class="flex flex-col md:flex-row justify-between items-start mb-10 gap-6">
+      <div class="w-full md:w-auto">
+        <h1 id="mainTitle" class="text-4xl md:text-6xl font-bold tracking-tight">프로젝트를 입력하세요</h1>
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 mt-1">
+          <p class="text-emerald-400 text-xl md:text-3xl font-medium">보안인쇄 진행 현황</p>
+          <div id="time-area" class="text-base md:text-xl text-zinc-400 font-mono"></div>
+        </div>
+      </div>
+
+      <div id="summary" class="w-full md:w-80"></div>
+    </div>
+
+    <div id="dashboard" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+  </div>
+
+  <script>
+    // ===== 💡 Google Sheets 주소 및 인증 설정 =====
+    const SHEET_ID = "1gp4BdOyRoyDray1dtFTvAey8WrAH7E0-eaLUnTWF7xA";
+    const API_KEY = "AIzaSyD7qPKn6AXIps7AsTJfRVFKNaZccI3Qsj8";
+    // ==============================================
+
+    let globalPrintJobs = [];
+
+    // 시간을 화면에 실시간으로 표시해 주는 함수
+    function updateTime() {
+      const now = new Date();
+      const currentTimeStr = now.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+
+      const timeArea = document.getElementById('time-area');
+      const startTime = JSON.parse(localStorage.getItem('workStartTime'));
+      const totalWorkTime = localStorage.getItem('totalWorkTime');
+
+      if (startTime === null && !totalWorkTime) {
+        timeArea.innerHTML = `${currentTimeStr} <span class="text-amber-400">(작업 시작 전)</span>`;
+      } else if (startTime !== null) {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        timeArea.innerHTML = `${currentTimeStr} <span class="text-emerald-400">(${hours}시간 ${minutes}분 경과)</span>`;
+      } else if (totalWorkTime) {
+        timeArea.innerHTML = `${currentTimeStr} <span class="text-orange-400">⏱️ 타이머: ${totalWorkTime}</span>`;
+      }
+    }
+
+    // 구글 시트에서 실적 데이터를 원격으로 가져와 합산하는 핵심 함수
+    function loadJobsFromGoogleSheets() {
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000?key=${API_KEY}`)
+        .then(response => response.json())
+        .then(data => {
+          const rows = data.values || [];
+          const jobMap = {};
+          
+          // 첫 줄(엑셀의 제목행)을 제외하고 두 번째 줄부터 끝까지 읽습니다.
+          for (let i = 1; i < rows.length; i++) {
+            if (!rows[i] || rows[i].length === 0) continue;
+
+            // 💡 데이터 안전화: 글자 주위의 공백을 지우고 숫자에 섞인 컴마(,) 등을 제거합니다.
+            const name = rows[i][0] ? rows[i][0].toString().trim() : "";
+            const total = rows[i][1] ? parseInt(rows[i][1].toString().replace(/[^0-9]/g, '')) || 0 : 0;
+            const produced = rows[i][2] ? parseInt(rows[i][2].toString().replace(/[^0-9]/g, '')) || 0 : 0;
+
+            if (name) {
+              if (jobMap[name]) {
+                // 이미 들어온 적이 있는 동일한 작업명이라면 생산 수량을 누적 합산합니다.
+                jobMap[name].produced += produced;
+                // 필요 수량은 가장 최근에 입력된 값으로 맞춥니다.
+                if (total > 0) jobMap[name].total = total; 
+              } else {
+                // 처음 발견된 작업명이라면 새 항목으로 등록합니다.
+                jobMap[name] = { jobName: name, total: total, produced: produced };
+              }
+            }
+          }
+          
+          // 가공 완료된 데이터를 배열로 바꾸어 화면을 그릴 준비를 합니다.
+          globalPrintJobs = Object.values(jobMap);
+          renderAll();
+        })
+        .catch(error => console.error('❌ 구글 시트 데이터를 가져오지 못했습니다:', error));
+    }
+
+    // 전체 요약창(상단 카드)을 그려주는 함수
+    function renderSummary() {
+      let totalRequired = 0;
+      let totalProduced = 0;
+      
+      globalPrintJobs.forEach(job => {
+        totalRequired += job.total || 0;
+        totalProduced += job.produced || 0;
+      });
+      
+      const overall = totalRequired > 0 ? Math.floor((totalProduced / totalRequired) * 100) : 0;
+      const container = document.getElementById('summary');
+      
+      container.innerHTML = `
+        <div class="bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-3xl p-6 w-full border border-zinc-700">
+          <div class="text-lg font-semibold text-zinc-200">전체 진행률</div>
+          <div class="text-4xl font-bold text-emerald-400 mt-2">${overall}%</div>
+          <div class="text-sm text-zinc-400 mt-2">${totalProduced.toLocaleString()} / ${totalRequired.toLocaleString()}</div>
+          <div class="h-3 bg-zinc-700 rounded-full mt-4 overflow-hidden">
+            <div class="progress-bar h-full bg-gradient-to-r from-emerald-400 to-cyan-400" style="width: ${overall}%"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 메인 대시보드에 개별 실적 카드를 그려주는 함수
+    function renderDashboard() {
+      const container = document.getElementById('dashboard');
+      container.innerHTML = '';
+
+      if (globalPrintJobs.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full flex flex-col items-center justify-center py-24 text-center">
+            <div class="text-6xl mb-6 opacity-30">📋</div>
+            <p class="text-xl text-zinc-400">아직 등록된 작업이 없습니다</p>
+          </div>`;
+        return;
+      }
+
+      globalPrintJobs.forEach(job => {
+        const progress = job.total > 0 ? Math.floor((job.produced / job.total) * 100) : 0;
+        const card = document.createElement('div');
+        card.className = "bg-zinc-900 hover:bg-zinc-800/90 transition-all rounded-2xl p-6 relative group";
+        card.innerHTML = `
+          <h3 class="text-2xl font-bold mb-4 pr-8">${job.jobName}</h3>
+          <div class="h-4 bg-zinc-800 rounded-full overflow-hidden mb-4">
+            <div class="progress-bar h-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-teal-400" style="width: ${progress}%"></div>
+          </div>
+          <div class="flex justify-between items-end">
+            <div>
+              <span class="text-2xl font-bold">${job.produced.toLocaleString()}</span>
+              <span class="text-zinc-500 text-xl"> / ${job.total.toLocaleString()}</span>
+            </div>
+            <div class="text-3xl font-bold text-emerald-400">${progress}%</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // 상단 카드와 하단 그리드를 동시에 새로고침해 주는 함수
+    function renderAll() {
+      renderSummary();
+      renderDashboard();
+    }
+
+    // 웹페이지가 처음 켜질 때 실행되는 시작점
+    window.onload = () => {
+      // 로컬 스토리지에서 제목 가져오기
+      const savedTitle = localStorage.getItem('projectTitle') || '프로젝트 제목을 넣으세요';
+      document.getElementById('mainTitle').textContent = savedTitle;
+      
+      // 첫 데이터 로드
+      loadJobsFromGoogleSheets();
+      updateTime();
+      
+      // 1초마다 시계 바늘을 움직입니다.
+      setInterval(updateTime, 1000);
+      
+      // 💡 핵심 기능: 3초(3000ms)마다 구글 시트에서 자동으로 데이터를 가져와 화면을 실시간 업데이트합니다.
+      setInterval(loadJobsFromGoogleSheets, 3000);
+      
+      // 다른 브라우저 탭에서 바꾼 제목을 3초마다 체크해 똑같이 동기화합니다.
+      setInterval(() => {
+        const savedTitle = localStorage.getItem('projectTitle') || '프로젝트 제목을 넣으세요';
+        document.getElementById('mainTitle').textContent = savedTitle;
+      }, 3000);
+    };
+  </script>
+</body>
+</html>

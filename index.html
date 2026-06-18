@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>보안인쇄 입력</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Malgun Gothic', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen">
+  <div class="max-w-7xl mx-auto p-6">
+    <div class="mb-6 flex gap-4 items-center">
+      <input type="text" 
+             id="projectTitle" 
+             placeholder="프로젝트 제목 입력..." 
+             class="flex-1 px-4 py-2 rounded-lg bg-zinc-800 text-white border border-zinc-700 focus:border-emerald-400 focus:outline-none text-lg"
+             value="">
+      <button onclick="saveProjectTitle()" 
+              class="bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-lg font-bold transition-all">
+        💾 제목 저장
+      </button>
+    </div>
+
+    <div class="flex justify-between items-start mb-10">
+      <div>
+        <p class="text-emerald-400 text-3xl font-medium mt-2">📝 실적 입력 페이지</p>
+      </div>
+      <div id="time-area" class="text-xl text-zinc-400 font-mono"></div>
+    </div>
+
+    <div class="bg-zinc-900 rounded-3xl p-8 shadow-2xl max-w-2xl">
+      <h2 class="text-3xl font-bold mb-8 text-center">📝 실적 입력</h2>
+    
+      <div class="grid grid-cols-1 gap-6 mb-8">
+        <div>
+          <label class="block text-lg text-zinc-400 mb-3 font-semibold">작업명</label>
+          <input type="text" id="jobName"
+                 class="w-full p-4 rounded-2xl bg-zinc-800 focus:bg-zinc-700 outline-none text-lg"
+                 placeholder="예: 인성검사"
+                 onchange="updateTotalQtyField()">
+        </div>
+        <div>
+          <label class="block text-lg text-zinc-400 mb-3 font-semibold">총 필요수량</label>
+          <input type="number" id="totalQty"
+                 class="w-full p-4 rounded-2xl bg-zinc-800 focus:bg-zinc-700 outline-none text-lg"
+                 placeholder="예: 2500">
+        </div>
+        <div>
+          <label class="block text-lg text-zinc-400 mb-3 font-semibold">이번 생산수량</label>
+          <input type="number" id="producedQty"
+                 class="w-full p-4 rounded-2xl bg-zinc-800 focus:bg-zinc-700 outline-none text-lg"
+                 placeholder="예: 680">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <button onclick="addProduction()"
+                class="col-span-2 bg-emerald-600 hover:bg-emerald-500 py-5 rounded-2xl text-xl font-bold transition-all active:scale-95 shadow-lg">
+          ✅ 실적입력
+        </button>
+        <button onclick="startWorkTimer()"
+                class="bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
+          ▶️ 작업시작
+        </button>
+        <button onclick="stopWorkTimer()"
+                class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
+          ⏹️ 작업종료
+        </button>
+        <button onclick="window.location.href='dashboard.html'"
+                class="col-span-2 bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg mt-2">
+          📊 대시보드 바로가기
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-12 max-w-2xl">
+      <h3 class="text-2xl font-bold mb-6">📋 최근 등록된 작업 (구글 시트 연동)</h3>
+      <div id="recentList" class="space-y-4">
+        <p class="text-zinc-500">불러오는 중...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== 💡 Google Sheets 주소 및 인증 설정 =====
+    const SHEET_ID = "1gp4BdOyRoyDray1dtFTvAey8WrAH7E0-eaLUnTWF7xA";
+    const API_KEY = "AIzaSyD7qPKn6AXIps7AsTJfRVFKNaZccI3Qsj8";
+    // ==============================================
+
+    function saveProjectTitle() {
+      const title = document.getElementById('projectTitle').value.trim();
+      if (title) {
+        localStorage.setItem('projectTitle', title);
+        alert('제목이 저장되었습니다!');
+      } else {
+        alert('제목을 입력해주세요.');
+      }
+    }
+
+    function updateTime() {
+      const now = new Date();
+      const currentTimeStr = now.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+      document.getElementById('time-area').innerHTML = `🕐 ${currentTimeStr}`;
+    }
+
+    function updateTotalQtyField() {
+      const jobName = document.getElementById('jobName').value.trim();
+      if(!jobName) return;
+
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000?key=${API_KEY}`)
+        .then(response => response.json())
+        .then(data => {
+          const rows = data.values || [];
+          let existingTotal = null;
+          for (let i = rows.length - 1; i > 0; i--) {
+            if (rows[i][0] && rows[i][0].toString().trim() === jobName) {
+              existingTotal = parseInt(rows[i][1]) || 0;
+              break;
+            }
+          }
+
+          if (existingTotal !== null) {
+            document.getElementById('totalQty').value = existingTotal;
+            document.getElementById('totalQty').disabled = true;
+            document.getElementById('totalQty').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('producedQty').focus();
+          } else {
+            document.getElementById('totalQty').value = '';
+            document.getElementById('totalQty').disabled = false;
+            document.getElementById('totalQty').classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+        })
+        .catch(err => console.error("기존 수량 확인 실패:", err));
+    }
+
+    function addProduction() {
+      const jobName = document.getElementById('jobName').value.trim();
+      const totalQty = parseInt(document.getElementById('totalQty').value);
+      const producedQty = parseInt(document.getElementById('producedQty').value);
+
+      if (!jobName) {
+        alert("작업명을 입력해주세요.");
+        return;
+      }
+      if (isNaN(producedQty)) {
+        alert("이번 생산수량을 입력해주세요.");
+        return;
+      }
+      if (document.getElementById('totalQty').disabled === false && isNaN(totalQty)) {
+        alert("새로운 작업은 총 필요수량을 입력해주세요.");
+        return;
+      }
+
+      saveToGoogleSheets(jobName, totalQty || 0, producedQty);
+      
+      document.getElementById('jobName').value = '';
+      document.getElementById('totalQty').value = '';
+      document.getElementById('totalQty').disabled = false;
+      document.getElementById('totalQty').classList.remove('opacity-50', 'cursor-not-allowed');
+      document.getElementById('producedQty').value = '';
+      document.getElementById('jobName').focus();
+    }
+
+    function saveToGoogleSheets(jobName, totalQty, producedQty) {
+      const timestamp = new Date().toLocaleString('ko-KR');
+      const values = [[jobName, totalQty, producedQty, "접수", "-", timestamp]];
+      const body = { values: values };
+
+      // 데이터를 추가하라는 요청을 구글 서버에 보냅니다.
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000:append?valueInputOption=USER_ENTERED&key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(response => {
+        if (!response.ok) {
+          // 구글 서버가 요청을 거절했을 때 (권한 문제 등) 발생합니다.
+          throw new Error(`구글 서버 오류 (코드: ${response.status}) - 공유 권한 혹은 시트명을 확인하세요.`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        alert("✅ 실적이 성공적으로 등록되었습니다!\n전체 대시보드에 실시간 반영됩니다.");
+        renderRecentList();
+      })
+      .catch(error => {
+        // 네트워크 연결이 끊겼거나 주소가 아예 잘못되었을 때 발생합니다.
+        console.error('❌ Google Sheets 저장 오류:', error);
+        alert(`❌ 구글 시트 저장 실패!\n이유: ${error.message}`);
+      });
+    }
+
+    function startWorkTimer() {
+      localStorage.setItem('workStartTime', JSON.stringify(Date.now()));
+      localStorage.removeItem('totalWorkTime');
+      alert("🚀 작업 타이머가 시작되었습니다!");
+    }
+
+    function stopWorkTimer() {
+      const startTime = JSON.parse(localStorage.getItem('workStartTime'));
+      if (startTime === null) {
+        alert("⚠️ 시작된 작업이 없습니다!");
+        return;
+      }
+      const elapsedMs = Date.now() - startTime;
+      const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+      const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((elapsedMs % (1000 * 60)) / 1000);
+      const timeStr = `${hours}시간 ${minutes}분 ${seconds}초`;
+      
+      localStorage.removeItem('workStartTime');
+      localStorage.setItem('totalWorkTime', timeStr);
+      alert(`⏹️ 작업이 종료되었습니다!\n⏱️ Working Time: ${timeStr}`);
+    }
+
+    function renderRecentList() {
+      const container = document.getElementById('recentList');
+      fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000?key=${API_KEY}`)
+        .then(response => response.json())
+        .then(data => {
+          const rows = data.values || [];
+          if (rows.length <= 1) {
+            container.innerHTML = '<p class="text-zinc-500">등록된 작업이 없습니다</p>';
+            return;
+          }
+          const recentRows = rows.slice(1).reverse().slice(0, 5);
+          container.innerHTML = recentRows.map(row => `
+            <div class="bg-zinc-900 rounded-2xl p-4 flex justify-between items-center">
+              <div class="flex-1">
+                <p class="font-bold text-lg">${row[0]}</p>
+                <p class="text-zinc-400 text-sm">이번 입력: ${parseInt(row[2]).toLocaleString()}개 (${row[5] || ''})</p>
+              </div>
+            </div>
+          `).join('');
+        })
+        .catch(() => {
+          container.innerHTML = '<p class="text-zinc-500">목록을 불러오지 못했습니다.</p>';
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const focused = document.activeElement;
+        if (['producedQty', 'totalQty', 'jobName'].includes(focused.id)) {
+          addProduction();
+        }
+      }
+    });
+
+    window.onload = () => {
+      const savedTitle = localStorage.getItem('projectTitle') || '프로젝트 제목을 넣으세요';
+      document.getElementById('projectTitle').value = savedTitle;
+      document.getElementById('jobName').focus();
+      updateTime();
+      setInterval(updateTime, 1000);
+      renderRecentList();
+    };
+  </script>
+</body>
+</html>
