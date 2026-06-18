@@ -9,7 +9,6 @@
     body { font-family: 'Malgun Gothic', system-ui, sans-serif; }
     .progress-bar { transition: width 1.8s cubic-bezier(0.34, 1.56, 0.64, 1 ); }
     
-    /* 모바일 기기에서도 화면이 깨지지 않도록 맞추는 설정 */
     @media (max-width: 768px) {
       h1 { font-size: 2rem !important; }
       .text-3xl { font-size: 1.25rem !important; }
@@ -51,7 +50,6 @@
 
     let globalPrintJobs = [];
 
-    // 시간을 화면에 실시간으로 표시해 주는 함수
     function updateTime() {
       const now = new Date();
       const currentTimeStr = now.toLocaleTimeString('ko-KR', { 
@@ -76,44 +74,47 @@
       }
     }
 
-    // 구글 시트에서 실적 데이터를 원격으로 가져와 합산하는 핵심 함수
+    // 구글 시트에서 실적 데이터를 누적 합산하여 가져오는 함수
     function loadJobsFromGoogleSheets() {
+      // Sheet1!A1:F1000 범위를 읽어옵니다.
       fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Sheet1!A1:F1000?key=${API_KEY}`)
         .then(response => response.json())
         .then(data => {
           const rows = data.values || [];
           const jobMap = {};
           
-          // 첫 줄(엑셀의 제목행)을 제외하고 두 번째 줄부터 끝까지 읽습니다.
-          for (let i = 1; i < rows.length; i++) {
+          for (let i = 0; i < rows.length; i++) {
             if (!rows[i] || rows[i].length === 0) continue;
 
-            // 💡 데이터 안전화: 글자 주위의 공백을 지우고 숫자에 섞인 컴마(,) 등을 제거합니다.
+            // 데이터의 앞뒤 공백을 안전하게 제거합니다.
             const name = rows[i][0] ? rows[i][0].toString().trim() : "";
+            
+            // 💡 핵심 수정: 첫 줄에 있는 제목글씨나 비어있는 행은 계산에서 완벽하게 제외시킵니다.
+            if (name === "작업명" || name === "제목" || name === "") continue;
+
+            // 수량 데이터에 문자가 섞여있어도 순수 숫자만 골라내어 변환합니다.
             const total = rows[i][1] ? parseInt(rows[i][1].toString().replace(/[^0-9]/g, '')) || 0 : 0;
             const produced = rows[i][2] ? parseInt(rows[i][2].toString().replace(/[^0-9]/g, '')) || 0 : 0;
 
             if (name) {
               if (jobMap[name]) {
-                // 이미 들어온 적이 있는 동일한 작업명이라면 생산 수량을 누적 합산합니다.
+                // 이미 등록된 작업명이면 이번에 생산된 수량을 누적해서 더합니다.
                 jobMap[name].produced += produced;
-                // 필요 수량은 가장 최근에 입력된 값으로 맞춥니다.
+                // 총 필요수량은 값이 들어왔을 때 최신값으로 유지합니다.
                 if (total > 0) jobMap[name].total = total; 
               } else {
-                // 처음 발견된 작업명이라면 새 항목으로 등록합니다.
+                // 처음 등장하는 작업명이면 대시보드 목록에 새로 등록합니다.
                 jobMap[name] = { jobName: name, total: total, produced: produced };
               }
             }
           }
           
-          // 가공 완료된 데이터를 배열로 바꾸어 화면을 그릴 준비를 합니다.
           globalPrintJobs = Object.values(jobMap);
           renderAll();
         })
         .catch(error => console.error('❌ 구글 시트 데이터를 가져오지 못했습니다:', error));
     }
 
-    // 전체 요약창(상단 카드)을 그려주는 함수
     function renderSummary() {
       let totalRequired = 0;
       let totalProduced = 0;
@@ -138,7 +139,6 @@
       `;
     }
 
-    // 메인 대시보드에 개별 실적 카드를 그려주는 함수
     function renderDashboard() {
       const container = document.getElementById('dashboard');
       container.innerHTML = '';
@@ -173,29 +173,21 @@
       });
     }
 
-    // 상단 카드와 하단 그리드를 동시에 새로고침해 주는 함수
     function renderAll() {
       renderSummary();
       renderDashboard();
     }
 
-    // 웹페이지가 처음 켜질 때 실행되는 시작점
     window.onload = () => {
-      // 로컬 스토리지에서 제목 가져오기
       const savedTitle = localStorage.getItem('projectTitle') || '프로젝트 제목을 넣으세요';
       document.getElementById('mainTitle').textContent = savedTitle;
       
-      // 첫 데이터 로드
       loadJobsFromGoogleSheets();
       updateTime();
       
-      // 1초마다 시계 바늘을 움직입니다.
       setInterval(updateTime, 1000);
+      setInterval(loadJobsFromGoogleSheets, 3000); // 3초마다 구글 시트 데이터를 실시간 새로고침합니다.
       
-      // 💡 핵심 기능: 3초(3000ms)마다 구글 시트에서 자동으로 데이터를 가져와 화면을 실시간 업데이트합니다.
-      setInterval(loadJobsFromGoogleSheets, 3000);
-      
-      // 다른 브라우저 탭에서 바꾼 제목을 3초마다 체크해 똑같이 동기화합니다.
       setInterval(() => {
         const savedTitle = localStorage.getItem('projectTitle') || '프로젝트 제목을 넣으세요';
         document.getElementById('mainTitle').textContent = savedTitle;
