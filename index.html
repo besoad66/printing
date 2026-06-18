@@ -68,20 +68,16 @@
                 class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
           ⏹️ 작업종료
         </button>
-        <button onclick="clearInputFields()"
-                class="bg-zinc-700 hover:bg-zinc-600 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
-          🧹 입력창 리셋
+        <button onclick="clearGoogleSheets()"
+                class="bg-red-700 hover:bg-red-600 py-4 rounded-2xl text-base font-bold transition-all active:scale-95 shadow-lg">
+          🚨 데이터 전체초기화
         </button>
       </div>
 
-      <div class="flex gap-4 border-t border-zinc-800 pt-4">
+      <div class="border-t border-zinc-800 pt-4">
         <button onclick="window.location.href='dashboard.html'"
-                class="flex-1 bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
+                class="w-full bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg">
           📊 대시보드 바로가기
-        </button>
-        <button onclick="clearGoogleSheets()"
-                class="bg-red-950 text-red-400 hover:bg-red-900 border border-red-800 px-4 rounded-2xl text-sm font-semibold transition-all">
-          🚨 데이터 전체초기화
         </button>
       </div>
     </div>
@@ -95,8 +91,8 @@
   </div>
 
   <script>
-    // ===== 💡 본인의 구글 웹 앱 URL 주소를 여기에 꼭 다시 붙여넣으세요 =====
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbweL349oZfbvXA6_4S0OoL29V3bvfUxl0ykuevwqndLxis3uJYLpBNjsJ0yjl_5HLg/exec";
+    // ===== 💡 1단계에서 새로 만든 본인의 구글 웹 앱 URL 주소를 아래에 붙여넣으세요 =====
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw3GbPBl9WZEfyGxSTL9r0PEN0RYY_UaTUWm5mN8odFRHtfw7mWNszbZO-AclizY1bL/exec";
     
     const SHEET_ID = "1gp4BdOyRoyDray1dtFTvAey8WrAH7E0-eaLUnTWF7xA";
     const API_KEY = "AIzaSyD7qPKn6AXIps7AsTJfRVFKNaZccI3Qsj8";
@@ -194,7 +190,6 @@
       });
     }
 
-    // 🧹 입력창 칸들만 깨끗이 비워주는 함수
     function clearInputFields() {
       document.getElementById('jobName').value = '';
       document.getElementById('totalQty').value = '';
@@ -204,13 +199,12 @@
       document.getElementById('jobName').focus();
     }
 
-    // 🚨 구글 스프레드시트의 전체 데이터를 포맷팅(초기화)하는 함수
+    // 🚨 구글 스프레드시트의 실적 데이터를 원격으로 진짜 삭제하는 함수
     function clearGoogleSheets() {
       if (!confirm("⚠️ 정말로 구글 시트의 모든 실적 데이터를 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.")) {
         return;
       }
       
-      // 구글 앱스 스크립트에게 'clear' 신호를 보냅니다.
       fetch(WEB_APP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -218,13 +212,17 @@
       })
       .then(response => response.json())
       .then(data => {
-        alert("🗑️ 구글 스프레드시트의 실적이 모두 초기화되었습니다!");
-        clearInputFields();
-        renderRecentList();
+        if(data.result === "success") {
+          alert("🗑️ 구글 스프레드시트와 대시보드의 실적이 완전히 초기화되었습니다!");
+          clearInputFields();
+          renderRecentList();
+        } else {
+          alert("초기화 실패: 구글 앱스 스크립트 배포가 올바르지 않습니다.");
+        }
       })
       .catch(error => {
-        alert("기존 데이터 청소 중 알림: 웹 앱 스크립트 업데이트가 필요할 수 있습니다. 구글 시트에서 직접 행을 삭제하셔도 안전합니다.");
-        renderRecentList();
+        console.error('❌ 초기화 오류:', error);
+        alert("❌ 초기화에 실패했습니다. 구글 시트 1단계의 새 배포 주소가 잘 들어갔는지 확인해 주세요.");
       });
     }
 
