@@ -180,7 +180,7 @@
       })
       .then(response => response.json())
       .then(data => {
-        alert("✅ 실적이 구글 스프레드시트에 실시간 등록되었습니다!");
+        alert("✅ 실적이 실시간 등록되었습니다!");
         clearInputFields();
         renderRecentList();
       })
@@ -213,7 +213,7 @@
       .then(response => response.json())
       .then(data => {
         if(data.result === "success") {
-          alert("🗑️ 구글 스프레드시트와 대시보드의 실적이 완전히 초기화되었습니다!");
+          alert("🗑️  실적이 완전히 초기화되었습니다!");
           clearInputFields();
           renderRecentList();
         } else {
