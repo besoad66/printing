@@ -93,8 +93,8 @@
             if (name === "작업명" || name === "제목" || name === "") continue;
 
             // 수량 데이터에 문자가 섞여있어도 순수 숫자만 골라내어 변환합니다.
-            const total = rows[i][1] ? parseInt(rows[i][1].toString().replace(/[^0-9]/g, '')) || 0 : 0;
-            const produced = rows[i][2] ? parseInt(rows[i][2].toString().replace(/[^0-9]/g, '')) || 0 : 0;
+            const total = rows[i][1] ? parseInt(rows[i][1].toString().replace(/[^0-9-]/g, '')) || 0 : 0;
+            const produced = rows[i][2] ? parseInt(rows[i][2].toString().replace(/[^0-9-]/g, '')) || 0 : 0;
 
             if (name) {
               if (jobMap[name]) {
