@@ -264,7 +264,7 @@
             <div class="bg-zinc-900 rounded-2xl p-4 flex justify-between items-center">
               <div class="flex-1">
                 <p class="font-bold text-lg">${row[0]}</p>
-                <p class="text-zinc-400 text-sm">생산: ${parseInt(row[2]).toLocaleString()}개 (${row[5] || ''})</p>
+                <p class="text-zinc-400 text-sm">생산: ${(row[2] ? parseInt(row[2].toString().replace(/[^0-9-]/g, '')) || 0 : 0).toLocaleString()}개 (${row[5] || ''})</p>
               </div>
             </div>
           `).join('');
